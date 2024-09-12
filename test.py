@@ -1,196 +1,181 @@
-"""Simple inline keyboard bot with multiple CallbackQueryHandlers.
-
-This Bot uses the Application class to handle the bot.
-First, a few callback functions are defined as callback query handler. Then, those functions are
-passed to the Application and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-Usage:
-Example of a bot that uses inline keyboard that has multiple CallbackQueryHandlers arranged in a
-ConversationHandler.
-Send /start to initiate the conversation.
-Press Ctrl-C on the command line to stop the bot.
-"""
 import logging
+from telegram import ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackQueryHandler
+from timetable import send_day_timetable, send_ring_time, CURRENT_WEEK_NUMBER
+from openpyxl import load_workbook
+import datetime
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-)
 
-# Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-# set higher logging level for httpx to avoid all GET and POST requests being logged
-logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 logger = logging.getLogger(__name__)
+reply_keyboard = [["/today", "/tomorrow"], ["/ring", "/select_day"]]
+markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
+TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
+GROUP = "ИСП(п)3122"
+WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+WEEK_NUMBER = 0
+GROUP = "ИСП(п)3122"
 
-# Stages
-START_ROUTES, END_ROUTES = range(2)
-# Callback data
-ONE, TWO, THREE, FOUR = range(4)
 
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Send message on `/start`."""
-    # Get user that sent /start and log his name
-    user = update.message.from_user
-    logger.info("User %s started the conversation.", user.first_name)
-    # Build InlineKeyboard where each button has a displayed text
-    # and a string as callback_data
-    # The keyboard is a list of button rows, where each row is in turn
-    # a list (hence `[[...]]`).
-    keyboard = [
-        [
-            InlineKeyboardButton("1", callback_data=str(ONE)),
-            InlineKeyboardButton("2", callback_data=str(TWO)),
-        ]
-    ]
+async def start(update, context):
+    user = update.effective_user
+    faculties = load_workbook("1 семестр Расписание 3 курса.xlsx").sheetnames
+    keyboard = []
+    for faculty in faculties:
+        keyboard.append([InlineKeyboardButton(faculty, callback_data=faculty)])
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Send message with text and appended InlineKeyboard
-    await update.message.reply_text("Start handler, Choose a route", reply_markup=reply_markup)
-    # Tell ConversationHandler that we're in state `FIRST` now
-    return START_ROUTES
-
-
-async def start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Prompt same text & keyboard as `start` does but not as new message"""
-    # Get CallbackQuery from Update
-    query = update.callback_query
-    # CallbackQueries need to be answered, even if no notification to the user is needed
-    # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
-    await query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("1", callback_data=str(ONE)),
-            InlineKeyboardButton("2", callback_data=str(TWO)),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    # Instead of sending a new message, edit the message that
-    # originated the CallbackQuery. This gives the feeling of an
-    # interactive menu.
-    await query.edit_message_text(text="Start handler, Choose a route", reply_markup=reply_markup)
-    return START_ROUTES
-
-
-async def one(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("3", callback_data=str(THREE)),
-            InlineKeyboardButton("4", callback_data=str(FOUR)),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(
-        text="First CallbackQueryHandler, Choose a route", reply_markup=reply_markup
+    await update.message.reply_html(
+        rf"Привет, {user.mention_html()}! Выбери специальность: ", reply_markup=reply_markup
     )
-    return START_ROUTES
+    return 2
 
-
-async def two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
+select_faculty
+async def select_group(update, context):
     query = update.callback_query
     await query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("1", callback_data=str(ONE)),
-            InlineKeyboardButton("3", callback_data=str(THREE)),
-        ]
-    ]
+    faculty = query.data
+    keyboard = []
+    for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[faculty]["1"]:
+        if group.value is not None and group.value not in ["День недели", "Время", "№ пары"]:
+            keyboard.append([InlineKeyboardButton(group.value, callback_data=group.value)])
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(
-        text="Second CallbackQueryHandler, Choose a route", reply_markup=reply_markup
-    )
-    return START_ROUTES
-
-
-async def three(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons. This is the end point of the conversation."""
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("Yes, let's do it again!", callback_data=str(ONE)),
-            InlineKeyboardButton("Nah, I've had enough ...", callback_data=str(TWO)),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(
-        text="Third CallbackQueryHandler. Do want to start over?", reply_markup=reply_markup
-    )
-    # Transfer to conversation state `SECOND`
-    return END_ROUTES
-
-
-async def four(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
-    query = update.callback_query
-    await query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("2", callback_data=str(TWO)),
-            InlineKeyboardButton("3", callback_data=str(THREE)),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(
-        text="Fourth CallbackQueryHandler, Choose a route", reply_markup=reply_markup
-    )
-    return START_ROUTES
-
-
-async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Returns `ConversationHandler.END`, which tells the
-    ConversationHandler that the conversation is over.
-    """
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text(text="See you next time!")
+    # await update.message.reply_text(f"Выберите группу: ", reply_markup=reply_markup)
+    await query.edit_message_text(text=f"Выбери группу: ", reply_markup=reply_markup)
     return ConversationHandler.END
 
 
-def main() -> None:
-    """Run the bot."""
-    # Create the Application and pass it your bot's token.
-    application = Application.builder().token("5916229033:AAF6RS1-ihUkSTOj3O7f6H_CZ1KdgHtNTZ0").build()
+async def button_group(update, context) -> None:
+    global GROUP
+    query = update.callback_query
+    await query.answer()
+    GROUP = query.data
+    await query.edit_message_text(text="OK")
 
-    # Setup conversation handler with the states FIRST and SECOND
-    # Use the pattern parameter to pass CallbackQueries with specific
-    # data pattern to the corresponding handlers.
-    # ^ means "start of line/string"
-    # $ means "end of line/string"
-    # So ^ABC$ will only allow 'ABC'
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            START_ROUTES: [
-                CallbackQueryHandler(one, pattern="^" + str(ONE) + "$"),
-                CallbackQueryHandler(two, pattern="^" + str(TWO) + "$"),
-                CallbackQueryHandler(three, pattern="^" + str(THREE) + "$"),
-                CallbackQueryHandler(four, pattern="^" + str(FOUR) + "$"),
-            ],
-            END_ROUTES: [
-                CallbackQueryHandler(start_over, pattern="^" + str(ONE) + "$"),
-                CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
-            ],
-        },
-        fallbacks=[CommandHandler("start", start)],
+
+async def today(update, context):
+    day = WEEK_NAMES[datetime.datetime.today().weekday()]
+    if datetime.datetime.today().weekday() != 6:
+        lessons_str = '\n'.join(send_day_timetable('ИСП(п)3122', day))
+        day = day[:-1] + "у" if day[-1] == 'а' else day
+        message = f"Расписание на {day}: \n{lessons_str}"
+    else:
+        message = f"Расписание на {day}: \nПар нет, так что можно отдохнуть"
+    await update.message.reply_text(message)
+
+
+async def select_week(update, context):
+    await update.message.reply_text(f"Напишите номер нужной недели для просмотра расписания (текущая - {CURRENT_WEEK_NUMBER})")
+    return 1
+
+
+async def select_day(update, context):
+    global WEEK_NUMBER
+    WEEK_NUMBER = int(update.message.text)
+    keyboard = [
+        [
+            InlineKeyboardButton("Понедельник", callback_data="Понедельник"),
+            InlineKeyboardButton("Вторник", callback_data="Вторник"),
+        ],
+        [
+            InlineKeyboardButton("Среда", callback_data="Среда"),
+            InlineKeyboardButton("Четверг", callback_data="Четверг"),
+        ],
+        [
+            InlineKeyboardButton("Пятница", callback_data="Пятница"),
+            InlineKeyboardButton("Суббота", callback_data="Суббота"),
+        ],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выберите день:", reply_markup=reply_markup)
+    return ConversationHandler.END
+
+
+async def stop(update, context):
+    return ConversationHandler.END
+
+
+async def button_day(update, context) -> None:
+    global WEEK_NUMBER
+    query = update.callback_query
+    await query.answer()
+    day = query.data
+
+    lessons_str = '\n'.join(send_day_timetable('ИСП(п)3122', day, WEEK_NUMBER))
+    day = day[:-1] + "у" if day[-1] == 'а' else day
+    message = f"Расписание на {day}: \n{lessons_str}"
+
+    await query.edit_message_text(text=message)
+
+
+async def tomorrow(update, context):
+    day = WEEK_NAMES[(datetime.datetime.today().weekday() + 1) % 7]
+    if datetime.datetime.today().weekday() != 5:
+        lessons_str = '\n'.join(send_day_timetable('ИСП(п)3122', day, ))
+        day = day[:-1] + "у" if day[-1] == 'а' else day
+        message = f"Расписание на {day}: \n{lessons_str}"
+    else:
+        message = f"Расписание на {day}: \nПар нет, так что можно отдохнуть"
+    await update.message.reply_text(message)
+
+
+async def echo(update, context):
+    await update.message.reply_text(
+        "Я не понимаю, используйте кнопки меню или /help"
     )
 
-    # Add ConversationHandler to application that will be used for handling updates
-    application.add_handler(conv_handler)
 
-    # Run the bot until the user presses Ctrl-C
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+async def ring(update, context):
+    message = f"Звонок в {send_ring_time()}"
+    if message == "Звонок в Пары закончились":
+        message = "Пары закончились"
+    await update.message.reply_text(message)
+
+
+async def help_command(update, context):
+    await update.message.reply_text(
+        "Я - бот для просмотра расписаний УАТ. Вот мои команды:  \
+            \n/help - Список команд \
+            \n/select - выбрать конкретныю неделю и день\
+            \n/today - Расписание на сегодня \
+            \n/tomorrow - Расписание на завтра \
+            \n/ring - Ближайший звонок",
+            reply_markup=markup,
+    )
+
+
+def main():
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("faculty", select_faculty))
+    application.add_handler(CallbackQueryHandler(button_faculty))
+    application.add_handler(CommandHandler("group", select_group))
+    application.add_handler(CallbackQueryHandler(button_group))
+
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("ring", ring))
+    application.add_handler(CommandHandler("today", today))
+    application.add_handler(CommandHandler("tomorrow", tomorrow))
+    select_day_handler = ConversationHandler(
+        entry_points=[CommandHandler("select_day", select_week)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_day)],
+        },
+        fallbacks=[CommandHandler("stop", stop)],
+    )
+    application.add_handler(CallbackQueryHandler(button_day))
+    application.add_handler(select_day_handler)
+
+
+
+    text_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, echo)
+    application.add_handler(text_handler)
+    
+
+    application.run_polling()
 
 
 if __name__ == "__main__":

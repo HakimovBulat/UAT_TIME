@@ -12,13 +12,15 @@ WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Чет
 GROUPS = ["ИСП(п)3122", "ИСП(с)3222", "ИСП(п)3322", "ИСП(с)3422", "ИСП(с)3522", "ИСП(с)3622"]
 CURRENT_WEEK_NUMBER = 2
 
+FACULTY = "ИСП ПР"
+
 
 def send_day_timetable(group : str, week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
     if week_number is None:
         week_number = CURRENT_WEEK_NUMBER
     week_days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
     wb = load_workbook("1 семестр Расписание 3 курса.xlsx")
-    ws = wb["ИСП ПР"]
+    ws = wb[FACULTY]
     print(week_number)
     row_index = week_days.index(week_day)
     group_index = GROUPS.index(group)
