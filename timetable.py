@@ -1,6 +1,5 @@
 import requests
 from openpyxl import load_workbook
-from tempfile import NamedTemporaryFile
 import datetime
 import json
 
@@ -27,7 +26,6 @@ def get_group() -> str:
 
 
 def send_day_timetable(week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
-    print(get_group(), get_faculty())
     if week_number is None:
         week_number = CURRENT_WEEK_NUMBER
     week_days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
@@ -37,7 +35,6 @@ def send_day_timetable(week_day : str, week_number : int=CURRENT_WEEK_NUMBER) ->
     for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[get_faculty()]["1"]:
         if group.value is not None and group.value not in ["День недели", "Время", "№ пары"]:
             groups.append(group.value)
-    print(groups)
     row_index = week_days.index(week_day)
     group_index = groups.index(get_group())
     count_group_week = 0
