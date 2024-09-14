@@ -1,9 +1,10 @@
 import logging
 from telegram import ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackQueryHandler, BaseHandler
-from timetable import send_day_timetable, send_ring_time, CURRENT_WEEK_NUMBER, FACULTY
+from timetable import send_day_timetable, send_ring_time, CURRENT_WEEK_NUMBER, get_faculty, get_group
 from openpyxl import load_workbook
 import datetime
+import json
 
 
 logging.basicConfig(
@@ -13,16 +14,14 @@ logger = logging.getLogger(__name__)
 reply_keyboard = [["/today", "/tomorrow"], ["/ring", "/select_day"]]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
-GROUP = "ИСП(п)3122"
 WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 WEEK_NUMBER = 0
-GROUP = "ИСП(п)3122"
 
 
 async def today(update, context):
     day = WEEK_NAMES[datetime.datetime.today().weekday()]
     if datetime.datetime.today().weekday() != 6:
-        lessons_str = '\n'.join(send_day_timetable(GROUP, day))
+        lessons_str = '\n'.join(send_day_timetable(day))
         day = day[:-1] + "у" if day[-1] == 'а' else day
         message = f"Расписание на {day}: \n{lessons_str}"
     else:
@@ -68,7 +67,7 @@ async def button_day(update, context) -> None:
     await query.answer()
     day = query.data
 
-    lessons_str = '\n'.join(send_day_timetable(GROUP, day, WEEK_NUMBER))
+    lessons_str = '\n'.join(send_day_timetable(day, WEEK_NUMBER))
     day = day[:-1] + "у" if day[-1] == 'а' else day
     message = f"Расписание на {day}: \n{lessons_str}"
     await query.edit_message_text(text=message)
@@ -77,7 +76,7 @@ async def button_day(update, context) -> None:
 async def tomorrow(update, context):
     day = WEEK_NAMES[(datetime.datetime.today().weekday() + 1) % 7]
     if datetime.datetime.today().weekday() != 5:
-        lessons_str = '\n'.join(send_day_timetable(GROUP, day, ))
+        lessons_str = '\n'.join(send_day_timetable(day))
         day = day[:-1] + "у" if day[-1] == 'а' else day
         message = f"Расписание на {day}: \n{lessons_str}"
     else:
@@ -117,7 +116,6 @@ async def start(update, context):
     )
     
 
-
 async def select_faculty(update, context):
     faculties = load_workbook("1 семестр Расписание 3 курса.xlsx").sheetnames
     keyboard = []
@@ -131,28 +129,31 @@ async def select_faculty(update, context):
 
 
 async def button_faculty(update, context):
-    global FACULTY
     query = update.callback_query
     await query.answer()
-    FACULTY = query.data
-    await query.edit_message_text(text=f"Отлично, выша специльность: {FACULTY}. Жми /group")
+    json_data = {"faculty": query.data, "group": get_group()}
+    with open("data.json", "w") as file:
+        json.dump(json_data, file)
+    await query.edit_message_text(text=f"Отлично, выша специльность: {query.data}. Жми /group")
     return ConversationHandler.END
 
 
 async def select_group(update, context):
     keyboard = []
-    for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[FACULTY]["1"]:
+    for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[get_faculty()]["1"]:
         if group.value is not None and group.value not in ["День недели", "Время", "№ пары"]:
             keyboard.append([InlineKeyboardButton(group.value, callback_data=group.value)])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(f"Выберите группу: ", reply_markup=reply_markup)
+    return 2
 
 
 async def button_group(update, context) -> None:
-    global GROUP
     query = update.callback_query
     await query.answer()
-    GROUP = query.data
+    json_data = {"group": query.data, "faculty": get_faculty()}
+    with open("data.json", "w") as file:
+        json.dump(json_data, file)
     await query.edit_message_text(text="OK")
     return ConversationHandler.END
 
@@ -168,8 +169,18 @@ def main():
         fallbacks=[CommandHandler("stop", stop)],
     )
     application.add_handler(select_faculty_handler)
-    application.add_handler(CommandHandler("group", select_group))
-    application.add_handler(CallbackQueryHandler(button_group))
+
+    
+    select_group_handler = ConversationHandler(
+        entry_points=[CommandHandler("group", select_group)],
+        states={
+            2: [CallbackQueryHandler(button_group)],
+        },
+        fallbacks=[CommandHandler("stop", stop)],
+    )
+    application.add_handler(select_group_handler)
+
+
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("ring", ring))
     application.add_handler(CommandHandler("today", today))

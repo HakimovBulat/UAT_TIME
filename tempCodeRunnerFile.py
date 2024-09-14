@@ -1,1 +1,1 @@
-FACULTY = "ИСП ПР"
+load
