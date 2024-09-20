@@ -1,7 +1,6 @@
 import requests
 from openpyxl import load_workbook
 import datetime
-import json
 
 
 url = 'https://docs.google.com/spreadsheets/d/1bckdpp4i-J0iFszaE-tqODnVhfNutyHKCW5wdFFD8-Y/export?format=xlsx'
@@ -10,33 +9,21 @@ with open('1 семестр Расписание 3 курса.xlsx', "wb") as fi
 	file.write(response.content)
 
 WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
-CURRENT_WEEK_NUMBER = 2
+CURRENT_WEEK_NUMBER = 3
 
 
-def get_faculty() -> str:
-    with open("data.json", encoding="utf-8") as file:
-        data = json.load(file)
-        return data["faculty"]
-
-
-def get_group() -> str:
-    with open("data.json", encoding="utf-8") as file:
-        data = json.load(file)
-        return data["group"]    
-
-
-def send_day_timetable(week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
+def send_day_timetable(group_name : str, faculty_name : str, week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
     if week_number is None:
         week_number = CURRENT_WEEK_NUMBER
     week_days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
     wb = load_workbook("1 семестр Расписание 3 курса.xlsx")
-    ws = wb[get_faculty()]
+    ws = wb[faculty_name]
     groups = []
-    for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[get_faculty()]["1"]:
+    for group in ws["1"]:
         if group.value is not None and group.value not in ["День недели", "Время", "№ пары"]:
             groups.append(group.value)
     row_index = week_days.index(week_day)
-    group_index = groups.index(get_group())
+    group_index = groups.index(group_name)
     count_group_week = 0
     for cell in ws["2"]:
         if cell.value == week_number and count_group_week == group_index:
