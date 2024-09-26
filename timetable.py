@@ -7,9 +7,7 @@ url = 'https://docs.google.com/spreadsheets/d/1bckdpp4i-J0iFszaE-tqODnVhfNutyHKC
 response = requests.get(url)
 with open('1 семестр Расписание 3 курса.xlsx', "wb") as file:
 	file.write(response.content)
-
-WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
-CURRENT_WEEK_NUMBER = 3
+CURRENT_WEEK_NUMBER = datetime.datetime.now().isocalendar()[1] - 35
 
 
 def send_day_timetable(group_name : str, faculty_name : str, week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
@@ -39,7 +37,7 @@ def send_day_timetable(group_name : str, faculty_name : str, week_day : str, wee
             else:
                 lessons.append("------------------------")
     if lessons.count("------------------------") == 6:
-        return ["Пар нет, так что можно отдохнуть"]
+        return ["Пар нет"]
     for i in range(len(lessons)):
         lessons[i] = f"{i+1}) {lessons[i]}"
     return lessons

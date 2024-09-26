@@ -12,7 +12,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-reply_keyboard = [["/today", "/tomorrow"], ["/ring", "/select_day"]]
+reply_keyboard = [["/today", "/tomorrow"], ["/day", "/faculty"], ["/help", "/stop"]]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
 WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
@@ -63,7 +63,7 @@ async def select_day(update, context):
 
 
 async def stop(update, context):
-    await update.message.reply_text("ОК")
+    await update.message.reply_text("Пожалуйста введи нужную команду заново")
     return ConversationHandler.END
 
 
@@ -109,24 +109,25 @@ async def ring(update, context):
 async def help_command(update, context):
     await update.message.reply_text(
         "Я - бот для просмотра расписаний УАТ. Вот мои команды:  \
-            \n/help - Список команд \
-            \n/select - выбрать конкретныю неделю и день\
+            \n/stop - Нажать, если программа перестанет работать \
+            \n/day - Выбрать конкретные неделю и день\
             \n/today - Расписание на сегодня \
             \n/tomorrow - Расписание на завтра \
-            \n/ring - Ближайший звонок",
+            \n/faculty - Выбрать специальность \
+            \n/group - Выбрать группу по специальности",
     )
 
 
 async def start(update, context):
     user = update.effective_user
     cursor = connection.cursor()
-    cursor.execute(''' CREATE TABLE IF NOT EXISTS User (id INTEGER PRIMARY KEY, group_name TEXT, faculty TEXT)''')
+    cursor.execute(''' CREATE TABLE IF NOT EXISTS User (id INTEGER PRIMARY KEY, group_name VARCHAR(50), faculty VARCHAR(50))''')
     connection.commit()
     if not cursor.execute('''SELECT 1 FROM User WHERE id = ? ''', (user.id, )).fetchone():
         cursor.execute('''INSERT INTO User (id, group_name, faculty) VALUES (?, ?, ?)''', (user.id, 'ИСП(п)3122', 'ИСП ПР'))
         connection.commit()
     await update.message.reply_html(
-        rf"Привет, {user.mention_html()}! Жми /faculty", 
+        rf"Привет, {user.mention_html()}! Жми /faculty для выбора специальности или /help для просмотра команд", 
         reply_markup=markup
     )
     
@@ -199,7 +200,7 @@ def main():
     application.add_handler(CommandHandler("today", today))
     application.add_handler(CommandHandler("tomorrow", tomorrow))
     select_day_handler = ConversationHandler(
-        entry_points=[CommandHandler("select_day", select_week)],
+        entry_points=[CommandHandler("day", select_week)],
         states={
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_day)],
             2: [CallbackQueryHandler(button_day)],
