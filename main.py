@@ -1,6 +1,17 @@
 import logging
-from telegram import ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackQueryHandler, BaseHandler
+from telegram import (
+    ReplyKeyboardMarkup,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+from telegram.ext import (
+    Application,
+    MessageHandler,
+    filters,
+    CommandHandler,
+    ConversationHandler,
+    CallbackQueryHandler,
+)
 from timetable import send_day_timetable, send_ring_time, CURRENT_WEEK_NUMBER
 from openpyxl import load_workbook
 import datetime
@@ -14,29 +25,41 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 reply_keyboard = [["/today", "/tomorrow"], ["/day", "/faculty"], ["/help", "/stop"]]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
-TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
-WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-WEEK_NUMBER = 0
-connection = sqlite3.connect('my_database.db')
+connection = sqlite3.connect("my_database.db")
 cursor = connection.cursor()
 connection.commit()
+WEEK_NAMES = [
+    "Понедельник",
+    "Вторник",
+    "Среда",
+    "Четверг",
+    "Пятница",
+    "Суббота",
+    "Воскресенье",
+]
+TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
+WEEK_NUMBER = 0
 
 
 async def today(update, context):
     day = WEEK_NAMES[datetime.datetime.today().weekday()]
+    faculty_name, group_name = cursor.execute(
+            """SELECT faculty, group_name FROM User WHERE id = ?""",
+            (update.effective_user.id,),
+        ).fetchone()
     if datetime.datetime.today().weekday() != 6:
-        faculty_name, group_name = cursor.execute("""SELECT faculty, group_name FROM User WHERE id = ?""", \
-                                                  (update.effective_user.id,)).fetchone()
-        lessons_str = '\n'.join(send_day_timetable(group_name, faculty_name, day))
-        day = day[:-1] + "у" if day[-1] == 'а' else day
-        message = f"Расписание на {day}: \n{lessons_str}"
+        
+        lessons_str = "\n".join(send_day_timetable(group_name, faculty_name, day))
+        message = f"{day}, {group_name}: \n{lessons_str}"
     else:
-        message = f"Расписание на {day}: \nПар нет, так что можно отдохнуть"
+        message = f"{day}, {group_name}: \nПар нет, так что можно отдохнуть"
     await update.message.reply_text(message)
 
 
 async def select_week(update, context):
-    await update.message.reply_text(f"Напишите номер нужной недели для просмотра расписания (текущая - {CURRENT_WEEK_NUMBER})")
+    await update.message.reply_text(
+        f"Напишите номер нужной недели для просмотра расписания (текущая - {CURRENT_WEEK_NUMBER})"
+    )
     return 1
 
 
@@ -71,32 +94,38 @@ async def button_day(update, context) -> None:
     query = update.callback_query
     await query.answer()
     day = query.data
-    faculty_name, group_name = cursor.execute("""SELECT faculty, group_name FROM User WHERE id = ?""", \
-                                              (update.effective_user.id,)).fetchone()
-    lessons_str = '\n'.join(send_day_timetable(group_name, faculty_name,  day, WEEK_NUMBER))
-    day = day[:-1] + "у" if day[-1] == 'а' else day
-    message = f"Расписание на {day}: \n{lessons_str}"
+    faculty_name, group_name = cursor.execute(
+        """SELECT faculty, group_name FROM User WHERE id = ?""",
+        (update.effective_user.id,),
+    ).fetchone()
+    lessons_str = "\n".join(
+        send_day_timetable(group_name, faculty_name, day, WEEK_NUMBER)
+    )
+    message = f"{day}, {group_name}: \n{lessons_str}"
     await query.edit_message_text(text=message)
     return ConversationHandler.END
 
 
 async def tomorrow(update, context):
     day = WEEK_NAMES[(datetime.datetime.today().weekday() + 1) % 7]
+    faculty_name, group_name = cursor.execute(
+            """SELECT faculty, group_name FROM User WHERE id = ?""",
+            (update.effective_user.id,),
+        ).fetchone()
     if datetime.datetime.today().weekday() != 5:
-        faculty_name, group_name = cursor.execute("""SELECT faculty, group_name FROM User WHERE id = ?""", \
-                                                  (update.effective_user.id,)).fetchone()
-        lessons_str = '\n'.join(send_day_timetable(group_name, faculty_name, day))
-        day = day[:-1] + "у" if day[-1] == 'а' else day
-        message = f"Расписание на {day}: \n{lessons_str}"
+        
+        if day == 0:
+            lessons_str = "\n".join(send_day_timetable(group_name, faculty_name, day, datetime.datetime.now().isocalendar()[1] - 34))
+        else:
+            lessons_str = "\n".join(send_day_timetable(group_name, faculty_name, day))
+        message = f"{day}, {group_name}: \n{lessons_str}"
     else:
-        message = f"Расписание на {day}: \nПар нет, так что можно отдохнуть"
+        message = f"{day}, {group_name}: \nПар нет"
     await update.message.reply_text(message)
 
 
 async def echo(update, context):
-    await update.message.reply_text(
-        "Я не понимаю, используйте кнопки меню или /help"
-    )
+    await update.message.reply_text("Я не понимаю, используйте кнопки меню или /help")
 
 
 async def ring(update, context):
@@ -108,7 +137,7 @@ async def ring(update, context):
 
 async def help_command(update, context):
     await update.message.reply_text(
-        "Я - бот для просмотра расписаний УАТ. Вот мои команды:  \
+        "Это бот для просмотра расписаний. Вот мои команды:  \
             \n/stop - Нажать, если программа перестанет работать \
             \n/day - Выбрать конкретные неделю и день\
             \n/today - Расписание на сегодня \
@@ -121,16 +150,23 @@ async def help_command(update, context):
 async def start(update, context):
     user = update.effective_user
     cursor = connection.cursor()
-    cursor.execute(''' CREATE TABLE IF NOT EXISTS User (id INTEGER PRIMARY KEY, group_name VARCHAR(50), faculty VARCHAR(50))''')
+    cursor.execute(
+        """ CREATE TABLE IF NOT EXISTS User (id INTEGER PRIMARY KEY, group_name VARCHAR(50), faculty VARCHAR(50))"""
+    )
     connection.commit()
-    if not cursor.execute('''SELECT 1 FROM User WHERE id = ? ''', (user.id, )).fetchone():
-        cursor.execute('''INSERT INTO User (id, group_name, faculty) VALUES (?, ?, ?)''', (user.id, 'ИСП(п)3122', 'ИСП ПР'))
+    if not cursor.execute(
+        """SELECT 1 FROM User WHERE id = ? """, (user.id,)
+    ).fetchone():
+        cursor.execute(
+            """INSERT INTO User (id, group_name, faculty) VALUES (?, ?, ?)""",
+            (user.id, "ИСП(п)3122", "ИСП ПР"),
+        )
         connection.commit()
     await update.message.reply_html(
-        rf"Привет, {user.mention_html()}! Жми /faculty для выбора специальности или /help для просмотра команд", 
-        reply_markup=markup
+        rf"Привет, {user.mention_html()}! Жми /faculty для выбора специальности или /help для просмотра команд",
+        reply_markup=markup,
     )
-    
+
 
 async def select_faculty(update, context):
     faculties = load_workbook("1 семестр Расписание 3 курса.xlsx").sheetnames
@@ -148,18 +184,31 @@ async def button_faculty(update, context):
     query = update.callback_query
     await query.answer()
     cursor = connection.cursor()
-    cursor.execute("""UPDATE User SET faculty = ? WHERE id = ?""", (query.data, update.effective_user.id))
+    cursor.execute(
+        """UPDATE User SET faculty = ? WHERE id = ?""",
+        (query.data, update.effective_user.id),
+    )
     connection.commit()
-    await query.edit_message_text(text=f"Отлично, выша специльность: {query.data}. Жми /group")
+    await query.edit_message_text(
+        text=f"Отлично, выша специльность: {query.data}. Жми /group"
+    )
     return ConversationHandler.END
 
 
 async def select_group(update, context):
     keyboard = []
-    faculty_name = cursor.execute('''SELECT faculty FROM User WHERE id = ?''', (update.effective_user.id, )).fetchone()[0]
+    faculty_name = cursor.execute(
+        """SELECT faculty FROM User WHERE id = ?""", (update.effective_user.id,)
+    ).fetchone()[0]
     for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[faculty_name]["1"]:
-        if group.value is not None and group.value not in ["День недели", "Время", "№ пары"]:
-            keyboard.append([InlineKeyboardButton(group.value, callback_data=group.value)])
+        if group.value is not None and group.value not in [
+            "День недели",
+            "Время",
+            "№ пары",
+        ]:
+            keyboard.append(
+                [InlineKeyboardButton(group.value, callback_data=group.value)]
+            )
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(f"Выберите группу: ", reply_markup=reply_markup)
     return 2
@@ -168,9 +217,12 @@ async def select_group(update, context):
 async def button_group(update, context) -> None:
     query = update.callback_query
     await query.answer()
-    cursor.execute("""UPDATE User SET group_name = ? WHERE id = ?""", (query.data, update.effective_user.id))
+    cursor.execute(
+        """UPDATE User SET group_name = ? WHERE id = ?""",
+        (query.data, update.effective_user.id),
+    )
     connection.commit()
-    await query.edit_message_text(text="OK")
+    await query.edit_message_text(text="Можете посмотреть расписание на сегодня - /today или на завтра - /tomorrow")
     return ConversationHandler.END
 
 

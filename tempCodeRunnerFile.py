@@ -1,1 +1,0 @@
-ursor.execute("SELECT * FROM User").fetchall()
