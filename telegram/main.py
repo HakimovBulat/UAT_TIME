@@ -23,7 +23,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-reply_keyboard = [["/today", "/tomorrow"], ["/day", "/faculty"], ["/help", "/stop"]]
+reply_keyboard = [["Сегодня", "Завтра"], ["Выбрать день", "Специальность"], ["Помощь", "Стоп"]]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 connection = sqlite3.connect("my_database.db")
 cursor = connection.cursor()
@@ -37,8 +37,15 @@ WEEK_NAMES = [
     "Суббота",
     "Воскресенье",
 ]
-TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
+TOKEN = "8308113992:AAG32wAZzsTxpbmNlKn3Mf0SejY_1I_0wFY"
+# TOKEN = "7521976097:AAHy6d-dRYbM0xB4KkNT5fiTQ7juhUe0NGI"
 WEEK_NUMBER = 0
+
+def delivery_report(err, msg):
+    if err is not None:
+        print(f'Ошибка доставки сообщения: {err}')
+    else:
+        print(f'Сообщение доставлено в {msg.topic()} [{msg.partition()}]')
 
 
 async def today(update, context):
@@ -54,7 +61,7 @@ async def today(update, context):
     else:
         message = f"{day}, {group_name}: \nПар нет, так что можно отдохнуть"
     await update.message.reply_text(message)
-
+    
 
 async def select_week(update, context):
     await update.message.reply_text(
@@ -125,8 +132,14 @@ async def tomorrow(update, context):
 
 
 async def echo(update, context):
-    await update.message.reply_text("Я не понимаю, используйте кнопки меню или /help")
-
+    if update.message.text == "Сегодня":
+        await today(update, context)
+    elif update.message.text == "Завтра":
+        await tomorrow(update, context)
+    elif update.message.text == "Специальность":
+        await select_faculty(update, context)
+    elif update.message.text == "Выбрать день":
+        await select_day(update, context)
 
 async def ring(update, context):
     message = f"Звонок в {send_ring_time()}"
@@ -159,7 +172,7 @@ async def start(update, context):
     ).fetchone():
         cursor.execute(
             """INSERT INTO User (id, group_name, faculty) VALUES (?, ?, ?)""",
-            (user.id, "ИСП(п)3122", "ИСП ПР"),
+            (user.id, "ИСП(п)4122", "ИСП ПР"),
         )
         connection.commit()
     await update.message.reply_html(
@@ -169,7 +182,7 @@ async def start(update, context):
 
 
 async def select_faculty(update, context):
-    faculties = load_workbook("1 семестр Расписание 3 курса.xlsx").sheetnames
+    faculties = load_workbook("timetable.xlsx").sheetnames
     keyboard = []
     for faculty in faculties:
         keyboard.append([InlineKeyboardButton(faculty, callback_data=faculty)])
@@ -177,10 +190,13 @@ async def select_faculty(update, context):
     await update.message.reply_html(
         rf"Выбери специальность: ", reply_markup=reply_markup
     )
+    print(9999999999999999)
+    await button_faculty(update, context)
     return 2
 
 
 async def button_faculty(update, context):
+    print(8888888888888888)
     query = update.callback_query
     await query.answer()
     cursor = connection.cursor()
@@ -197,15 +213,22 @@ async def button_faculty(update, context):
 
 async def select_group(update, context):
     keyboard = []
+    print(9999999999999999)
     faculty_name = cursor.execute(
         """SELECT faculty FROM User WHERE id = ?""", (update.effective_user.id,)
     ).fetchone()[0]
-    for group in load_workbook("1 семестр Расписание 3 курса.xlsx")[faculty_name]["1"]:
+    print(9999999999999999)
+
+    for group in load_workbook("timetable.xlsx")[faculty_name]["9"]:
+        print(group.value)
         if group.value is not None and group.value not in [
             "День недели",
             "Время",
             "№ пары",
+            "zz",
+
         ]:
+            
             keyboard.append(
                 [InlineKeyboardButton(group.value, callback_data=group.value)]
             )

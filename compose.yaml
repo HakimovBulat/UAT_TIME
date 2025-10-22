@@ -1,0 +1,47 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.9.12-management
+    restart: unless-stopped
+    hostname: rabbitmq
+    container_name: rabbitmq-broker
+    ports:
+      - 5672:5672
+      - 15672:15672
+    # healthcheck:
+    #   test:
+    #     [ "CMD", "echo", "Awaiting rabbitmq..." ]
+    #   interval: 10s
+    #   timeout: 10s
+    #   retries: 8
+    networks:
+      - mynetwork
+  telegram:
+    build: .
+      # context: /telegram
+    container_name: telegram
+    depends_on:
+      - rabbitmq
+    # command: python main.py
+    # volumes:
+    #   - .:/telegram
+    ports:
+      - "8000:8000"
+    networks:
+      - mynetwork
+  client:
+    build: ./client
+    depends_on:
+      - rabbitmq
+      # - kafka
+
+    container_name: client
+    # command: python main.py
+    # volumes:
+      # - .:/client
+    # ports:
+    #   - "8080:8080"
+    networks:
+      - mynetwork
+networks:
+    mynetwork:
+      driver: bridge
