@@ -1,45 +1,47 @@
-import requests
+
 from openpyxl import load_workbook
-from tempfile import NamedTemporaryFile
 import datetime
 
-url = 'https://docs.google.com/spreadsheets/d/1bckdpp4i-J0iFszaE-tqODnVhfNutyHKCW5wdFFD8-Y/export?format=xlsx'
-response = requests.get(url)
-with open('1 семестр Расписание 3 курса.xlsx', "wb") as file:
-	file.write(response.content)
 
-WEEK_NAMES =  ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
-GROUPS = ["ИСП(п)3122", "ИСП(с)3222", "ИСП(п)3322", "ИСП(с)3422", "ИСП(с)3522", "ИСП(с)3622"]
-CURRENT_WEEK_NUMBER = 2
+# url = "https://docs.google.com/spreadsheets/d/1rbUMw-YmpSBfNQPW5L6-C80BB9vvxx7l/export?format=xlsx"
+# # # url = ' https://docs.google.com/spreadsheets/d/1bckdpp4i-J0iFszaE-tqODnVhfNutyHKCW5wdFFD8-Y/export?format=xlsx'
+# response = requests.get(url)
+# with open('timetable.xlsx', "wb") as file:
+#     file.write(response.content)
 
-FACULTY = "ИСП ПР"
+CURRENT_WEEK_NUMBER = datetime.datetime.now().isocalendar()[1] - 35
 
 
-def send_day_timetable(group : str, week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
+def send_day_timetable(group_name : str, faculty_name : str, week_day : str, week_number : int=CURRENT_WEEK_NUMBER) -> list:
     if week_number is None:
         week_number = CURRENT_WEEK_NUMBER
     week_days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
-    wb = load_workbook("1 семестр Расписание 3 курса.xlsx")
-    ws = wb[FACULTY]
-    print(week_number)
+    wb = load_workbook("timetable.xlsx")
+    ws = wb[faculty_name]
+    groups = []
+    for group in ws["9"]:
+        if group.value is not None and group.value not in ["День недели", "Время", "№ пары", "zz"]:
+            groups.append(group.value)
     row_index = week_days.index(week_day)
-    group_index = GROUPS.index(group)
+    group_index = groups.index(group_name)
     count_group_week = 0
-    for cell in ws["2"]:
+
+    for cell in ws["10"]:
         if cell.value == week_number and count_group_week == group_index:
             col_index = cell.column
             break
         elif cell.value == week_number and count_group_week != group_index:
             count_group_week += 1
     lessons = []
-    for row in ws.iter_rows(min_row=row_index * 6 + 3, max_col=col_index, max_row=row_index * 6 + 8, min_col=col_index):
+
+    for row in ws.iter_rows(min_row=row_index * 6 + 11, max_col=col_index, max_row=row_index * 6 + 16, min_col=col_index):
         for cell in row:
             if cell.value:
                 lessons.append(cell.value)
             else:
                 lessons.append("------------------------")
     if lessons.count("------------------------") == 6:
-        return ["Пар нет, так что можно отдохнуть"]
+        return ["Пар нет"]
     for i in range(len(lessons)):
         lessons[i] = f"{i+1}) {lessons[i]}"
     return lessons
